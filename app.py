@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, jsonify
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import sqlite3
 import logging
 import time
@@ -108,6 +109,27 @@ def students():
 def fail():
     log_error("Simulated failure triggered")
     raise Exception("Simulated crash!")
+
+# Request counter
+REQUEST_COUNT = Counter('app_requests_total', 'Total HTTP Requests', ['method', 'endpoint'])
+
+# Request latency
+REQUEST_LATENCY = Histogram('app_request_latency_seconds', 'Request latency')
+
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    latency = time.time() - request.start_time
+    REQUEST_LATENCY.observe(latency)
+    REQUEST_COUNT.labels(request.method, request.path).inc()
+    return response
+
+@app.route('/metrics')
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 if __name__ == '__main__':
     init_db()
