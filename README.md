@@ -60,6 +60,39 @@ student-app/
 * AWS deployment (EC2 + RDS)
 * CI/CD pipeline integration
 
+## Deployment Setup (EC2 + CodeDeploy)
+
+### EC2 Setup
+
+1. Launch EC2 (Amazon Linux 2)
+2. Allow ports: 22 (SSH), 5000 (App)
+3. Attach IAM role: `AmazonEC2RoleforAWSCodeDeploy`
+
+### Install CodeDeploy Agent
+
+```bash
+sudo yum update -y
+sudo yum install ruby -y
+sudo yum install wget -y
+
+cd /home/ec2-user
+wget https://aws-codedeploy-ap-south-1.s3.ap-south-1.amazonaws.com/latest/install
+chmod +x ./install
+sudo ./install auto
+sudo service codedeploy-agent start
+```
+
+### Verify Agent
+
+```bash
+sudo service codedeploy-agent status
+```
+
+Expected: running
+
+```
+```
+
 ## Author
 
 Tanmaya Kumar Rout

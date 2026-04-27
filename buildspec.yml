@@ -1,10 +1,32 @@
 version: 0.2
 
+env:
+  variables:
+    APP_NAME: "student-app"
+
 phases:
   install:
+    runtime-versions:
+      python: 3.11
     commands:
-      - pip install -r requirements.txt
-
+      - echo "Installing dependencies..."
+      - pip install --upgrade pip
+      - pip install -r requirements.txt    
   build:
     commands:
-      - echo "Build complete"
+      - echo "Build phase started..."
+      - echo "Nothing to compile for Flask app"
+      - python -m py_compile app.py
+
+  post_build:
+    commands:
+      - echo "Preparing deployment artifacts..."
+
+artifacts:
+  files:
+    - app.py
+    - requirements.txt
+    - appspec.yml
+    - scripts/**/*
+    - config/**/*
+  discard-paths: no
