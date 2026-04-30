@@ -10,8 +10,8 @@ phases:
       python: 3.11
     commands:
       - echo "Installing dependencies..."
-      - pip install --upgrade pip
-      - pip install -r requirements.txt    
+      - pip3 install --upgrade pip
+      - pip3 install -r requirements.txt    
   build:
     commands:
       - echo "Build phase started..."
@@ -21,12 +21,17 @@ phases:
   post_build:
     commands:
       - echo "Preparing deployment artifacts..."
+      - echo "Validating deployment files..."
+      - test -f appspec.yml
+      - echo "Listing artifact contents..."
+      - ls -R
 
 artifacts:
   files:
     - app.py
     - requirements.txt
     - appspec.yml
-    - scripts/**/*
+    - scripts/install.sh
+    - scripts/start.sh
     - config/**/*
   discard-paths: no
