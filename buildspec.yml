@@ -33,5 +33,7 @@ artifacts:
     - appspec.yml
     - scripts/install.sh
     - scripts/start.sh
+    - scripts/cleanup.sh
+    - scripts/healthcheck.sh
     - config/**/*
   discard-paths: no
