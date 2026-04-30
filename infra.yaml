@@ -38,7 +38,8 @@ Resources:
     Properties:
       InstanceType: t2.micro
 ##    ImageId: ami-0f58b397bc5c1f2e8
-      ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}'
+##    ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}'
+      ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
       KeyName: student-key
       SecurityGroupIds:
         - !Ref MySecurityGroup
@@ -53,8 +54,10 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -e   # stops script if any command fails
-          yum update -y
-          yum install -y ruby wget
+##        yum update -y
+##        yum install -y ruby wget
+          dnf update -y
+          dnf install -y ruby wget
 
           cd /home/ec2-user
           wget https://aws-codedeploy-ap-south-1.s3.ap-south-1.amazonaws.com/latest/install

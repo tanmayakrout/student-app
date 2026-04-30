@@ -10,11 +10,11 @@ cd /home/ec2-user/student-app
 
 # Install Python3 if not present
 echo "Installing Python3..."
-sudo yum install -y python3
+sudo dnf install -y python3
 
 # Install pip3 (THIS was missing)
 echo "Installing pip3..."
-sudo yum install -y python3-pip
+sudo dnf install -y python3-pip
 
 # Verify installations
 echo "Checking Python..."
