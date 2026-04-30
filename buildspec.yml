@@ -31,9 +31,9 @@ artifacts:
     - app.py
     - requirements.txt
     - appspec.yml
-    - scripts/install.sh
-    - scripts/start.sh
-    - scripts/cleanup.sh
-    - scripts/healthcheck.sh
+    - scripts/**/*
     - config/**/*
+    - templates/**/*
+    - static/**/*
+    - schema.sql
   discard-paths: no

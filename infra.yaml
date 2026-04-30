@@ -54,8 +54,6 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -e   # stops script if any command fails
-##        yum update -y
-##        yum install -y ruby wget
           dnf update -y
           dnf install -y ruby wget
 
