@@ -6,6 +6,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow SSH and App Port
+      VpcId: vpc-0dc7fee7df6be3bd7
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -189,3 +190,42 @@ Resources:
               Configuration:
                 ApplicationName: !Ref MyCodeDeployApp
                 DeploymentGroupName: !Ref MyDeploymentGroup    
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP
+      VpcId: vpc-0dc7fee7df6be3bd7
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  MyALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: student-app-alb
+      Subnets:
+        - subnet-0d73afc1f5e7f7d9c
+        - subnet-06205e8649c99a9a6
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+  
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 5000
+      Protocol: HTTP
+      VpcId: vpc-0dc7fee7df6be3bd7
+      HealthCheckPath: /
+      TargetType: instance                    
+
+  MyListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref MyALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup  
