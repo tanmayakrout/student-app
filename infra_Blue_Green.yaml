@@ -1,0 +1,274 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Basic EC2 setup for student app
+
+Resources:
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and App Port
+      VpcId: vpc-0dc7fee7df6be3bd7
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+#      RoleName: EC2-CodeDeploy-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+  
+  MyCodeDeployApp:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: student-app
+      ComputePlatform: Server
+  
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CodeDeployServiceRole-FIXED
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+        - arn:aws:iam::aws:policy/AutoScalingFullAccess
+        - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+      Policies:
+        - PolicyName: CodeDeployExtraPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - cloudwatch:*
+                  - iam:PassRole
+                Resource: "*"
+
+       
+  MyDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref MyCodeDeployApp
+      DeploymentGroupName: student-app-dg
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      AutoScalingGroups:
+        - !Ref MyAutoScalingGroup
+      LoadBalancerInfo:
+        TargetGroupInfoList:
+          - Name: !GetAtt MyTargetGroup.TargetGroupName
+      BlueGreenDeploymentConfiguration:
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+        GreenFleetProvisioningOption:
+          Action: COPY_AUTO_SCALING_GROUP
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+  MyCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: student-app-build
+      Source:
+        Type: CODEPIPELINE
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: false
+      ServiceRole: !GetAtt CodeBuildRole.Arn    
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+  MyPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: 1
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ConnectionArn: arn:aws:codeconnections:ap-south-1:628203514915:connection/ef57f8eb-cf0e-4c71-926e-e1f4e038bc7e
+                FullRepositoryId: tanmayakrout/student-app
+                BranchName: main
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref MyCodeBuild
+        - Name: Deploy
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: 1
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ApplicationName: !Ref MyCodeDeployApp
+                DeploymentGroupName: !Ref MyDeploymentGroup    
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP
+      VpcId: vpc-0dc7fee7df6be3bd7
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  MyALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: student-app-alb
+      Subnets:
+        - subnet-0d73afc1f5e7f7d9c
+        - subnet-06205e8649c99a9a6
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+  
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: tg-student-app
+      Port: 5000
+      Protocol: HTTP
+      VpcId: vpc-0dc7fee7df6be3bd7
+      HealthCheckPath: /
+      TargetType: instance                    
+
+  MyListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref MyALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyTargetGroup  
+  
+  MyLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: t2.micro
+        ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+        KeyName: student-key
+        SecurityGroupIds:
+          - !Ref MySecurityGroup
+        IamInstanceProfile:
+          Name: !Ref EC2InstanceProfile
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -e
+            dnf update -y
+            dnf install -y ruby wget
+
+            cd /home/ec2-user
+            wget https://aws-codedeploy-ap-south-1.s3.ap-south-1.amazonaws.com/latest/install
+            chmod +x ./install
+            ./install auto
+
+            systemctl start codedeploy-agent
+            systemctl enable codedeploy-agent        
+
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - subnet-0d73afc1f5e7f7d9c
+        - subnet-06205e8649c99a9a6
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 2
+      DesiredCapacity: 1
+      TargetGroupARNs:
+        - !Ref MyTargetGroup
+      Tags:
+        - Key: App
+          Value: student-app
+          PropagateAtLaunch: true          
